@@ -28,6 +28,8 @@ _thre, img = cv2.threshold(img, 0, 255, cv2.THRESH_OTSU) # 大津の2値化
 cv2.imwrite('./data/digits_mask.jpeg', img)
 contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+predictions_list = []
+
 # 画像の認識
 for i in range(0, len(contours)):
     if len(contours[i]) > 0: #右の数字から認識される
@@ -65,7 +67,14 @@ for i in range(0, len(contours)):
         # 予測結果の表示(確認用)
         print("Prediction:", predicted_class)
 
+        # 予測結果を文字列としてリストに追加
+        predictions_list.insert(0,str(predicted_class))  
+
         #ここで画像を保存する(確認用)数字は認識されている
         resized = resized.reshape(28, 28)
         filename = f'./output/test_{predicted_class}_{i}.jpg'
         cv2.imwrite(filename, resized)
+
+# リスト内の数字を文字列として結合
+predicted_string = ''.join(predictions_list)
+print("Predicted string:", predicted_string)
