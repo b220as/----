@@ -21,24 +21,29 @@ THRESH_MAX_AREA = 500000
 MARGIN = 10  # 追加する余白のサイズ
 
 # 画像の前処理
-img = cv2.imread('./data/digits.png') # ファイル指定別の形に
+img = cv2.imread('./data/digits1.png') # ファイル指定別の形に
 img=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY) # グレースケール化
 img = cv2.bitwise_not(img) # 白黒反転（ネガ）
 _thre, img = cv2.threshold(img, 0, 255, cv2.THRESH_OTSU) # 大津の2値化
-cv2.imwrite('./data/digits_mask.jpeg', img)
+#cv2.imwrite('./data/digits_mask.jpeg', img)
 contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-# 画像の認識
-for i in range(0, len(contours)):
-    if len(contours[i]) > 0: #右の数字から認識される
+predictions_list = []
 
+# 画像の認識
+
+# X軸の位置でソート
+contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])  
+
+for i, contour in enumerate(contours):
+    if len(contours[i]) > 0: 
         # 認識範囲外のものを除去
         area1 = cv2.contourArea(contours[i])
         if (area1 < THRESH_MIN_AREA) or (area1 > THRESH_MAX_AREA):  
             continue
 
-        rect = contours[i]
-        x, y, w, h = cv2.boundingRect(rect)
+        rect = cv2.boundingRect(contour)
+        x, y, w, h = rect
 
         # ここでOpenCVを使用して新しいデータを用意し、適切に前処理を行う
 
@@ -63,9 +68,16 @@ for i in range(0, len(contours)):
         predicted_class = np.argmax(predictions)
 
         # 予測結果の表示(確認用)
-        print("Prediction:", predicted_class)
+        #print("Prediction:", predicted_class)
+
+        # 予測結果を文字列としてリストに追加
+        predictions_list.append(str(predicted_class))  
 
         #ここで画像を保存する(確認用)数字は認識されている
         resized = resized.reshape(28, 28)
         filename = f'./output/test_{predicted_class}_{i}.jpg'
         cv2.imwrite(filename, resized)
+
+# リスト内の数字を文字列として結合
+predicted_string = ''.join(predictions_list)
+print("Predicted string:", predicted_string)
