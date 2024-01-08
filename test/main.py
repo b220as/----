@@ -83,9 +83,16 @@ class DigitRecognizer:
         predicted_string = self.recognition_strategy.recognize(img)
         return predicted_string
 
-# 使用例
+# 使用例_1
 recognizer = DigitRecognizer()
 image_path = './data/digits0.png'
+processed_image = recognizer.process_image(image_path)
+predicted_string = recognizer.recognize_digits(processed_image)
+print("Predicted string:", predicted_string)
+
+# 使用例_2
+recognizer = DigitRecognizer()
+image_path = './data/digits1.png'
 processed_image = recognizer.process_image(image_path)
 predicted_string = recognizer.recognize_digits(processed_image)
 print("Predicted string:", predicted_string)
