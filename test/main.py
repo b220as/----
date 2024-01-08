@@ -2,7 +2,6 @@
 # SimpleConvNetRecognitionクラスはDigitRecognitionStrategyを実装し、数字認識アルゴリズムをカプセル化しています。
 # DigitRecognizerFactoryは異なる認識アルゴリズムのインスタンス化を抽象化し、新しい認識アルゴリズムの追加を容易にします。
 
-import pickle
 import cv2
 import numpy as np
 from abc import ABC, abstractmethod
