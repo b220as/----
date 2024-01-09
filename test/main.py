@@ -1,97 +1,223 @@
-# Strategy Patternを使用して、数字認識の戦略を切り替え可能にするためのクラスとファクトリーメソッドを実装しました。
-# SimpleConvNetRecognitionクラスはDigitRecognitionStrategyを実装し、数字認識アルゴリズムをカプセル化しています。
-# DigitRecognizerFactoryは異なる認識アルゴリズムのインスタンス化を抽象化し、新しい認識アルゴリズムの追加を容易にします。
-
+import os
 import cv2
 import numpy as np
 from abc import ABC, abstractmethod
 
 from simple_convnet import SimpleConvNet
 
+# 数字認識戦略を定義する抽象クラス
 class DigitRecognitionStrategy(ABC):
     @abstractmethod
     def recognize(self, img):
+        """与えられた画像から数字を認識する抽象メソッド。
+
+        Args:
+            img (numpy.ndarray): グレースケールの数字画像。
+
+        Returns:
+            str: 認識された数字の文字列。
+        """
         pass
 
+# SimpleConvNetを使用した数字認識戦略の具体的実装
 class SimpleConvNetRecognition(DigitRecognitionStrategy):
-    def __init__(self, thresh_min_area, thresh_max_area):
+    def __init__(self, min_area_threshold, max_area_threshold):
+        """SimpleConvNetに基づく数字認識戦略の初期化。
+
+        Args:
+            min_area_threshold (int): 数字として認識する最小の輪郭面積。
+            max_area_threshold (int): 数字として認識する最大の輪郭面積。
+        """
         self.network = SimpleConvNet(input_dim=(1, 28, 28), 
                                      conv_param={'filter_num': 30, 'filter_size': 5, 'pad': 0, 'stride': 1},
                                      hidden_size=100, output_size=10, weight_init_std=0.01)
         self.network.load_params()
-        self.THRESH_MIN_AREA = thresh_min_area
-        self.THRESH_MAX_AREA = thresh_max_area
+        self.MIN_AREA_THRESHOLD = min_area_threshold
+        self.MAX_AREA_THRESHOLD = max_area_threshold
 
     def recognize(self, img):
-        contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])  
+        """与えられた画像から数字を認識する。
 
-        predictions_list = []
-        for i, contour in enumerate(contours):
-            area = cv2.contourArea(contour)
-            if area < self.THRESH_MIN_AREA or area > self.THRESH_MAX_AREA:
-                continue
-            x, y, w, h = cv2.boundingRect(contour)
-            cropped = img[y:y+h, x:x+w]
+        Args:
+            img (numpy.ndarray): グレースケールの数字画像。
 
-            # 追加する余白のサイズ
-            max_side_length = max(cropped.shape[0], cropped.shape[1])
-            margin = int(0.2 * max_side_length)
-            
-            # 余白を追加して画像を28x28にリサイズ
-            cropped_with_margin = cv2.copyMakeBorder(cropped, margin, margin, margin, margin, cv2.BORDER_CONSTANT, value=0)
-            resized = cv2.resize(cropped_with_margin, (28, 28))
-            resized = resized.reshape(1, 1, 28, 28)
-
-            # 数字認識の実行
-            predictions = self.network.predict(resized)
-            predicted_class = np.argmax(predictions)
-            predictions_list.append(str(predicted_class))  # 予測結果を文字列としてリストに追加
-
-            # 画像の保存
-            resized = resized.reshape(28, 28)
-            filename = f'./output/test_{predicted_class}_{i}.jpg'
-            cv2.imwrite(filename, resized)
-
+        Returns:
+            str: 認識された数字の文字列。
+        """
+        # 数字の検出と予測
+        detected_contours = self.detect_and_classify_contours(img)
+        predictions_list = self.predict_detected_digits(detected_contours)
         predicted_string = ''.join(predictions_list)
         return predicted_string
 
+    # 数字の輪郭を取得する関数
+    def detect_and_classify_contours(self, img):
+        """与えられた画像から数字の輪郭を検出し分類する。
+
+        Args:
+            img (numpy.ndarray): グレースケールの数字画像。
+
+        Returns:
+            list: 分類された数字画像のリスト。
+        """
+        contours = self.detect_contours(img)
+        classified_contours = self.classify_detected_contours(contours, img)
+        return classified_contours
+
+    # 輪郭検出関数
+    def detect_contours(self, img):
+        """与えられた画像から数字の輪郭を検出する。
+
+        Args:
+            img (numpy.ndarray): グレースケールの数字画像。
+
+        Returns:
+            list: 検出された数字の輪郭のリスト。
+        """
+        contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        sorted_contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
+        return sorted_contours
+
+    # 輪郭を分類する関数
+    def classify_detected_contours(self, contours, img):
+        """与えられた数字の輪郭を分類する。
+
+        Args:
+            contours (list): 検出された数字の輪郭のリスト。
+            img (numpy.ndarray): グレースケールの数字画像。
+
+        Returns:
+            list: 分類された数字画像のリスト。
+        """
+        classified_contours = []
+        for i, contour in enumerate(contours):
+            area = cv2.contourArea(contour)
+            if area < self.MIN_AREA_THRESHOLD or area > self.MAX_AREA_THRESHOLD:
+                continue
+            cropped_digit = self.extract_digit_from_contour(contour, img)
+            resized_digit = self.resize_digit_with_margin(cropped_digit)
+            classified_contours.append(resized_digit)
+            self.save_digit_image(resized_digit, i)
+        return classified_contours
+
+    # 輪郭から数字を切り出す関数
+    def extract_digit_from_contour(self, contour, img):
+        """与えられた数字の輪郭から数字を切り出す。
+
+        Args:
+            contour (numpy.ndarray): 数字の輪郭情報。
+            img (numpy.ndarray): グレースケールの数字画像。
+
+        Returns:
+            numpy.ndarray: 数字の切り出された画像。
+        """
+        x, y, w, h = cv2.boundingRect(contour)
+        digit_image = img[y:y+h, x:x+w]
+        return digit_image
+
+    # 数字をリサイズして余白を追加する関数
+    def resize_digit_with_margin(self, digit_image):
+        """与えられた数字画像をリサイズし、余白を追加する。
+
+        Args:
+            digit_image (numpy.ndarray): 数字の画像。
+
+        Returns:
+            numpy.ndarray: リサイズされた数字の画像。
+        """
+        max_side_length = max(digit_image.shape[0], digit_image.shape[1])
+        margin = int(0.2 * max_side_length)
+        digit_with_margin = cv2.copyMakeBorder(digit_image, margin, margin, margin, margin, cv2.BORDER_CONSTANT, value=0)
+        resized_digit = cv2.resize(digit_with_margin, (28, 28))
+        resized_digit = resized_digit.reshape(1, 1, 28, 28)
+        return resized_digit
+
+    # 数字を予測する関数
+    def predict_detected_digits(self, classified_contours):
+        """与えられた数字の画像から数字を予測する。
+
+        Args:
+            classified_contours (list): 分類された数字画像のリスト。
+
+        Returns:
+            list: 予測された数字のリスト。
+        """
+        predictions_list = []
+        for digit_image in classified_contours:
+            prediction = self.predict_digit(digit_image)
+            predictions_list.append(str(prediction))
+        return predictions_list
+
+    # 数字を予測する関数
+    def predict_digit(self, digit_image):
+        """与えられた数字の画像から数字を予測する。
+
+        Args:
+            digit_image (numpy.ndarray): 数字の画像。
+
+        Returns:
+            int: 予測された数字。
+        """
+        predictions = self.network.predict(digit_image)
+        predicted_class = np.argmax(predictions)
+        return predicted_class
+
+    # 数字の画像を保存する関数
+    def save_digit_image(self, digit_image, i):
+        """与えられた数字の画像を保存する。
+
+        Args:
+            digit_image (numpy.ndarray): 数字の画像。
+            i (int): 画像のインデックス。
+        """
+        digit_image = digit_image.reshape(28, 28)
+        filename = f'./output/detected_digit_{i}.jpg'
+        cv2.imwrite(filename, digit_image)
+
+# 数字認識クラスを生成するファクトリークラス
 class DigitRecognizerFactory:
     @staticmethod
-    def create_recognizer(strategy,thresh_min_area, thresh_max_area):
+    def create_recognizer(strategy, thresh_min_area, thresh_max_area):
         if strategy == "SimpleConvNet":
             return SimpleConvNetRecognition(thresh_min_area, thresh_max_area)
-        # 他の数字認識アルゴリズムがあればここで追加
 
+# 数字認識のためのクラス
 class DigitRecognizer:
-    def __init__(self, strategy="SimpleConvNet",thresh_min_area=10, thresh_max_area=500000):
-        self.recognition_strategy = DigitRecognizerFactory.create_recognizer(strategy,thresh_min_area, thresh_max_area)
-        self.THRESH_MIN_AREA = 10
-        self.THRESH_MAX_AREA = 500000
+    def __init__(self, strategy="SimpleConvNet", thresh_min_area=10, thresh_max_area=500000):
+        self.recognition_strategy = DigitRecognizerFactory.create_recognizer(strategy, thresh_min_area, thresh_max_area)
+        self.THRESH_MIN_AREA = thresh_min_area
+        self.THRESH_MAX_AREA = thresh_max_area
 
+    # 画像の前処理を行う関数
     def process_image(self, image_path):
-        # 画像の読み込みと前処理
-        img = cv2.imread(image_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if not os.path.isfile(image_path):
+            raise FileNotFoundError("指定されたファイルが見つかりません。")
+        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise ValueError("画像を読み込めませんでした。")
+        if len(img.shape) != 2:
+            raise ValueError("グレースケールの画像を指定してください。")
+
         img = cv2.bitwise_not(img)
         _, img = cv2.threshold(img, 0, 255, cv2.THRESH_OTSU)
         return img
 
+    # 数字の認識処理を行う関数
     def recognize_digits(self, img):
-        # 数字の認識処理
         predicted_string = self.recognition_strategy.recognize(img)
         return predicted_string
 
-# 使用例_1
+# DigitRecognizerクラスのインスタンスを生成
 recognizer = DigitRecognizer()
-image_path = './data/digits0.png'
-processed_image = recognizer.process_image(image_path)
-predicted_string = recognizer.recognize_digits(processed_image)
-print("Predicted string:", predicted_string)
 
-# 使用例_2
-recognizer = DigitRecognizer()
-image_path = './data/digits1.png'
-processed_image = recognizer.process_image(image_path)
-predicted_string = recognizer.recognize_digits(processed_image)
-print("Predicted string:", predicted_string)
+# 使用例_1の処理
+image_path_1 = './data/digits0.png'
+processed_image_1 = recognizer.process_image(image_path_1)
+predicted_string_1 = recognizer.recognize_digits(processed_image_1)
+print("Predicted string (Image 1):", predicted_string_1)
+
+# 使用例_2の処理
+image_path_2 = './data/digits1.png'
+processed_image_2 = recognizer.process_image(image_path_2)
+predicted_string_2 = recognizer.recognize_digits(processed_image_2)
+print("Predicted string (Image 2):", predicted_string_2)
