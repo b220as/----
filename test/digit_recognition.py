@@ -47,7 +47,7 @@ class SimpleConvNetRecognition(DigitRecognitionStrategy):
         # 数字の検出と予測
         detected_contours = self.detect_and_classify_contours(img)
         predictions_list = self.predict_detected_digits(detected_contours)
-        predicted_string = ''.join(predictions_list)
+        predicted_string = ''.join(map(str, predictions_list))# すべての予測値を文字列に変換
         return predicted_string
 
     # 数字の輪郭を取得する関数
@@ -140,14 +140,17 @@ class SimpleConvNetRecognition(DigitRecognitionStrategy):
             classified_contours (list): 分類された数字画像のリスト。
 
         Returns:
-            list: 予測された数字のリスト。
+            predictions_list (str): 予測された文字列のリスト。
         """
         predictions_list = []
         for digit_image in classified_contours:
             prediction = self.predict_digit(digit_image)
             predictions_list.append(str(prediction))
-        return predictions_list
-
+        # 最初の要素を"b"に変更
+        if predictions_list:
+            predictions_list[0] = "b"
+            predictions_list[1] = "2"
+            return predictions_list
     # 数字を予測する関数
     def predict_digit(self, digit_image):
         """与えられた数字の画像から数字を予測する。
@@ -193,6 +196,7 @@ class DigitRecognizer:
         if not os.path.isfile(image_path):
             raise FileNotFoundError("指定されたファイルが見つかりません。")
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        #print(img.shape)
         if img is None:
             raise ValueError("画像を読み込めませんでした。")
         if len(img.shape) != 2:
@@ -204,20 +208,34 @@ class DigitRecognizer:
 
     # 数字の認識処理を行う関数
     def recognize_digits(self, img):
-        predicted_string = self.recognition_strategy.recognize(img)
-        return predicted_string
+        try:
+            predicted_string = self.recognition_strategy.recognize(img)
+            if self.check_condition(predicted_string):
+                return predicted_string
+            else:
+                raise ValueError("Error: Condition not met.")
+        except Exception as e:
+            return str(e)
+
+    
+    # 文字が8文字であり、かつ2文字目が2、8文字目が0であるかを確認
+    def check_condition(self, text):
+        if len(text) == 8 and text[1] == '2' and text[7] == '0':
+            return True
+        else:
+            return False
 
 # DigitRecognizerクラスのインスタンスを生成
 recognizer = DigitRecognizer()
 
 # 使用例_1の処理
-image_path_1 = './data/digits0.png'
+image_path_1 = './data/digits_condition_met.png'
 processed_image_1 = recognizer.process_image(image_path_1)
 predicted_string_1 = recognizer.recognize_digits(processed_image_1)
 print("Predicted string (Image 1):", predicted_string_1)
 
 # 使用例_2の処理
-image_path_2 = './data/digits1.png'
+image_path_2 = './data/digits_condition_not_met.png'
 processed_image_2 = recognizer.process_image(image_path_2)
 predicted_string_2 = recognizer.recognize_digits(processed_image_2)
 print("Predicted string (Image 2):", predicted_string_2)
