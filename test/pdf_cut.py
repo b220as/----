@@ -3,15 +3,19 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 import fitz
 
+def canvas_to_pdf_coordinates(canvas_x, canvas_y, pdf_resolution=72):
+    pdf_x = canvas_x * pdf_resolution / 300  # 300dpiを基準に調整
+    pdf_y = canvas_y * pdf_resolution / 300  # 300dpiを基準に調整
+    return pdf_x, pdf_y
+
 def pdf_to_image(pdf_path, page_number, rect, image_path):
     pdf_document = fitz.open(pdf_path)
     
     # ページ取得
     page = pdf_document[page_number - 1]
     
-    # 画像を取得
-    pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
-
+    # 元のサイズで画像を取得
+    pix = page.get_pixmap()
     
     # 切り取る範囲を指定
     rect = fitz.Rect(rect)
@@ -62,7 +66,9 @@ class PDFCutterApp:
     def display_page(self):
         pdf_document = fitz.open(self.pdf_path)
         page = pdf_document[self.page_number - 1]
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Adjust scale as needed
+        
+        # 元のサイズで画像を取得
+        pix = page.get_pixmap()
 
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         self.tk_img = ImageTk.PhotoImage(img)
@@ -73,18 +79,27 @@ class PDFCutterApp:
         pdf_document.close()
 
     def on_click_start(self, event):
-        self.rect_start = (event.x, event.y)
+        # Canvas上の座標をPDFページ上の座標に変換
+        pdf_x, pdf_y = canvas_to_pdf_coordinates(event.x, event.y)
+        print(f"Start Click: Canvas({event.x}, {event.y}) PDF({pdf_x}, {pdf_y})")
+        self.rect_start = (pdf_x, pdf_y)
 
     def on_drag(self, event):
         if self.rect_start:
+            # Canvas上の座標をPDFページ上の座標に変換
+            pdf_x, pdf_y = canvas_to_pdf_coordinates(event.x, event.y)
+            print(f"Dragging: Canvas({event.x}, {event.y}) PDF({pdf_x}, {pdf_y})")
             self.canvas.delete("rect")
             self.canvas.create_rectangle(
-                self.rect_start[0], self.rect_start[1], event.x, event.y,
+                self.rect_start[0], self.rect_start[1], pdf_x, pdf_y,
                 outline="red", width=2, tags="rect"
             )
 
     def on_click_end(self, event):
-        self.rect_end = (event.x, event.y)
+        # Canvas上の座標をPDFページ上の座標に変換
+        pdf_x, pdf_y = canvas_to_pdf_coordinates(event.x, event.y)
+        print(f"End Click: Canvas({event.x}, {event.y}) PDF({pdf_x}, {pdf_y})")
+        self.rect_end = (pdf_x, pdf_y)
 
     def cut_and_save(self):
         if self.pdf_path and self.rect_start and self.rect_end:
@@ -103,4 +118,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = PDFCutterApp(root)
     root.mainloop()
+
 
