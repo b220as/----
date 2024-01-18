@@ -1,18 +1,16 @@
 # pip install pymupdf
 
 import fitz  # PyMuPDF
+from tkinter import Tk, filedialog # ファイル選択ダイアログを開いてPDFファイルを選択する
 
 def pdf_to_images(file_path):
     pdf_document = fitz.open(file_path)
     for page_num in range(pdf_document.page_count):
         page = pdf_document.load_page(page_num)
         image = page.get_pixmap()
-        image.save(f'page_{page_num + 1}.png')
+        image.save(f'data/output_{page_num + 1}.png')
 
     pdf_document.close()
-
-# ファイル選択ダイアログを開いてPDFファイルを選択する
-from tkinter import Tk, filedialog
 
 root = Tk()
 root.withdraw()  # ウィンドウを表示しない

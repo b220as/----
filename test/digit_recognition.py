@@ -224,18 +224,3 @@ class DigitRecognizer:
             return True
         else:
             return False
-
-# DigitRecognizerクラスのインスタンスを生成
-recognizer = DigitRecognizer()
-
-# 使用例_1の処理
-image_path_1 = './data/digits_condition_met.png'
-processed_image_1 = recognizer.process_image(image_path_1)
-predicted_string_1 = recognizer.recognize_digits(processed_image_1)
-print("Predicted string (Image 1):", predicted_string_1)
-
-# 使用例_2の処理
-image_path_2 = './data/digits_condition_not_met.png'
-processed_image_2 = recognizer.process_image(image_path_2)
-predicted_string_2 = recognizer.recognize_digits(processed_image_2)
-print("Predicted string (Image 2):", predicted_string_2)
